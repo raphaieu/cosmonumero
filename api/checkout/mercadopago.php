@@ -2,6 +2,7 @@
 /**
  * Integração com o Mercado Pago
  */
+global $mp_access_token;
 $mp_access_token = 'APP_USR-8427023500547057-050113-5f3c2441f8b60a7ac66fd3c0ee0cfc71-1901198';
 /**
  * Criar preferência de pagamento no Mercado Pago

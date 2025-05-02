@@ -2,225 +2,159 @@
 /**
  * Integração com a API da OpenAI para interpretações numerológicas
  */
-$openai_api_key = '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';
-$openai_assistant_id = 'asst_CA8Yo9SaiNhBZVRcCJXQZX0I';
-
-/**
- * Obter interpretações numerológicas via OpenAI
- *
- * @param string $fullName Nome completo
- * @param string $birthDate Data de nascimento
- * @param array $numerologyData Dados numerológicos calculados
- * @param string $api_key Chave da API OpenAI
- * @param string $assistant_id ID do assistente OpenAI
- * @return array Interpretações
- */
-function getNumerologyInterpretations($fullName, $birthDate, $numerologyData, $api_key, $assistant_id) {
-    try {
-        // Extrair números
-        $lifePathNumber = $numerologyData['lifePathNumber'];
-        $destinyNumber = $numerologyData['destinyNumber'];
-        $personalYearNumber = $numerologyData['personalYearNumber'];
-
-        // Chamar a API da OpenAI
-        $response = callOpenAIAssistant(
-            $fullName,
-            $birthDate,
-            $lifePathNumber,
-            $destinyNumber,
-            $personalYearNumber,
-            $api_key,
-            $assistant_id
-        );
-
-        // Processar resposta
-        $interpretations = parseOpenAIResponse($response);
-
-        // Se alguma interpretação estiver vazia, usar fallback
-        foreach ($interpretations as $key => $value) {
-            if (empty($value)) {
-                $interpretations[$key] = getFallbackInterpretation($key, $numerologyData);
-            }
-        }
-
-        return $interpretations;
-    } catch (Exception $e) {
-        // Log do erro
-        logOpenAIError($e->getMessage());
-
-        // Usar interpretações de fallback
-        return getFallbackInterpretations($numerologyData);
-    }
-}
+global $openai_api_key;
+$openai_api_key = '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';
 
 /**
  * Chamar o assistente da OpenAI
  *
  * @param string $fullName Nome completo
  * @param string $birthDate Data de nascimento
- * @param int $lifePathNumber Número do caminho de vida
- * @param int $destinyNumber Número de destino
- * @param int $personalYearNumber Número do ano pessoal
+ * @param array $numerologyData Dados numerológicos calculados
  * @param string $api_key Chave da API OpenAI
- * @param string $assistant_id ID do assistente OpenAI
  * @return string Resposta do assistente
+ * @throws Exception
  */
-function callOpenAIAssistant($fullName, $birthDate, $lifePathNumber, $destinyNumber, $personalYearNumber, $api_key, $assistant_id) {
-    // Para fins de teste, vamos usar a API de Chat Completion em vez do assistente
-    // Em produção, você deve usar a API de Assistants
+function callOpenAIAssistant($fullName, $birthDate, $numerologyData, $api_key) {
+
+    $lifePathNumber = $numerologyData['lifePathNumber'];
+    $destinyNumber = $numerologyData['destinyNumber'];
+    $personalYearNumber = $numerologyData['personalYearNumber'];
 
     // URL da API
     $url = 'https://api.openai.com/v1/chat/completions';
+
+    $systemInstructions = <<<EOT
+You are a cosmic numerology expert with an inspiring, accessible, and spiritual tone. Based on the provided data (full name, birth date, and current date), generate a complete numerological analysis in Portuguese, structured with the following sections:
+
+1. **Caminho de Vida**: Calculate the Life Path Number using the Pythagorean system and explain its meaning (up to 255 words) in terms of purpose and challenges.  IMPORTANT: Do not reduce master numbers (11, 22, 33) to a single digit. If the calculation results in 11, 22, or 33, keep it as is and explain the significance of this master number.
+2. **Talentos e Forças**: Identify (in up to 125 words) which natural talents and strengths the individual may be underestimating, based on the Life Path.
+3. **Número de Destino**: Calculate the Destiny Number using the Pythagorean system and describe (in up to 255 words) the major life lessons suggested. IMPORTANT: Do not reduce master numbers (11, 22, 33) to a single digit. If the calculation results in 11, 22, or 33, keep it as is and explain the significance of this master number.
+4. **Ano Pessoal**: Calculate the current Personal Year by adding the day and month of birth to the current year, then reduce to a single digit (1-9). Even if the sum results in 11, 22, or 33, these should be reduced to a single digit for Personal Year calculations. Explain (in up to 125 words) the dominant energy to focus on until the next cycle.
+5. **Desafios e Oportunidades**: Based on the Life Path and Personal Year, indicate (in up to 150 words) the main active challenge and opportunity.
+6. **Ritual Diário**: Create a simple daily ritual or exercise (max 150 words) based on the Life Path to align with one's purpose.
+
+Format the response with clear section titles in Portuguese. Avoid redundancy, and keep the content concise, practical, and motivating.
+
+Always use the PYTHAGOREAN NUMEROLOGY SYSTEM for all calculations and respond in Brazilian Portuguese.
+EOT;
 
     // Data atual
     $currentDate = date('Y-m-d');
 
     // Preparar prompt para o assistente
-    $prompt = "Gere uma análise numerológica completa para {$fullName}, nascido(a) em {$birthDate}. A data atual é {$currentDate}.
-
-Dados numerológicos:
-- Número do Caminho de Vida: {$lifePathNumber}
-- Número de Destino: {$destinyNumber}
-- Número do Ano Pessoal: {$personalYearNumber}
-
-Por favor, forneça:
-
-1. **Caminho de Vida**: Explique o significado do Número do Caminho de Vida {$lifePathNumber} em termos de propósito e desafios (máximo 100 palavras).
-
-2. **Talentos e Forças**: Identifique quais talentos e forças naturais a pessoa pode estar subestimando, com base no Caminho de Vida {$lifePathNumber} (máximo 80 palavras).
-
-3. **Número de Destino**: Descreva as grandes lições de vida sugeridas pelo Número de Destino {$destinyNumber} (máximo 100 palavras).
-
-4. **Ano Pessoal**: Explique a energia dominante do Ano Pessoal {$personalYearNumber} a ser focada até o próximo ciclo (máximo 80 palavras).
-
-5. **Desafios**: Com base no Caminho de Vida {$lifePathNumber} e Ano Pessoal {$personalYearNumber}, indique o principal desafio ativo para esta pessoa agora (máximo 100 palavras).
-
-6. **Oportunidades**: Com base no Caminho de Vida {$lifePathNumber} e Ano Pessoal {$personalYearNumber}, indique a principal oportunidade ativa para esta pessoa agora (máximo 100 palavras).
-
-7. **Ritual Diário**: Crie um ritual ou exercício diário simples baseado no Caminho de Vida {$lifePathNumber} para alinhamento com o propósito (máximo 80 palavras).
-
-Forneça respostas concisas, práticas e motivadoras, respeitando os limites de palavras indicados. Divida cada resposta em seções claras.";
+    $prompt = "Nome completo: {$fullName}, nascido(a) em {$birthDate} e hoje é {$currentDate}.";
 
     // Dados da requisição
     $data = [
-        'model' => 'gpt-4-turbo',
+        'model' => 'gpt-4.1',
         'messages' => [
             [
                 'role' => 'system',
-                'content' => 'Você é um especialista em numerologia cósmica, com um tom inspirador, acessível e espiritual. Forneça informações precisas, respeitosas e úteis sobre o significado dos números na vida das pessoas.'
+                'content' => $systemInstructions
             ],
             [
                 'role' => 'user',
                 'content' => $prompt
             ]
         ],
-        'max_tokens' => 2000,
         'temperature' => 0.7
     ];
 
-    // Inicializar cURL
-    $ch = curl_init($url);
+    try {
+        // Inicializar cURL
+        $ch = curl_init($url);
 
-    // Configurar opções do cURL
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $api_key
-    ]);
+        // Configurar opções do cURL
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $api_key
+        ]);
 
-    // Executar requisição
-    $response = curl_exec($ch);
+        // Executar requisição
+        $response = curl_exec($ch);
 
-    // Verificar erros
-    if (curl_errno($ch)) {
+        // Verificar erros
+        if (curl_errno($ch)) {
+            curl_close($ch);
+            throw new Exception('Erro na requisição cURL: ' . curl_error($ch));
+        }
+
+        // Obter código de status HTTP
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        // Fechar cURL
         curl_close($ch);
-        throw new Exception('Erro na requisição cURL: ' . curl_error($ch));
+
+        // Decodificar resposta
+        $result = json_decode($response, true);
+
+        // Verificar código de status HTTP
+        if ($http_code !== 200) {
+            $error_message = $result['error']['message'] ?? 'Erro desconhecido';
+            throw new Exception('Erro na API da OpenAI: ' . $error_message);
+        }
+
+        // Verificar se a resposta foi bem-sucedida
+        if (!isset($result['choices'][0]['message']['content'])) {
+            throw new Exception('Formato de resposta inválido da API da OpenAI');
+        }
+
+        // Retornar o conteúdo da resposta
+        $response = $result['choices'][0]['message']['content'];
+
+        return parseOpenAIResponse($response);
+    } catch (Exception $e) {
+        logOpenAIError($e->getMessage());
+        throw new Exception($e->getMessage());
     }
-
-    // Obter código de status HTTP
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-    // Fechar cURL
-    curl_close($ch);
-
-    // Decodificar resposta
-    $result = json_decode($response, true);
-
-    // Verificar código de status HTTP
-    if ($http_code !== 200) {
-        $error_message = isset($result['error']['message']) ? $result['error']['message'] : 'Erro desconhecido';
-        throw new Exception('Erro na API da OpenAI: ' . $error_message);
-    }
-
-    // Verificar se a resposta foi bem-sucedida
-    if (!isset($result['choices'][0]['message']['content'])) {
-        throw new Exception('Formato de resposta inválido da API da OpenAI');
-    }
-
-    // Retornar o conteúdo da resposta
-    return $result['choices'][0]['message']['content'];
 }
 
 /**
- * Processar a resposta da OpenAI e extrair as interpretações
+ * Processar a resposta da OpenAI e extrair as interpretações em um array.
  *
  * @param string $response Resposta da OpenAI
  * @return array Interpretações extraídas
  */
 function parseOpenAIResponse($response) {
-    // Inicializar array de interpretações
-    $interpretations = [
-        'lifePathMeaning' => '',
-        'lifePathTalents' => '',
-        'destinyMeaning' => '',
-        'personalYearMeaning' => '',
-        'currentChallenges' => '',
-        'currentOpportunities' => '',
-        'dailyRitual' => ''
+    $map = [
+        'Caminho de Vida' => 'lifePathMeaning',
+        'Talentos e Forças' => 'lifePathTalents',
+        'Número de Destino' => 'destinyMeaning',
+        'Ano Pessoal' => 'personalYearMeaning',
+        'Desafios e Oportunidades' => 'currentChallenges',
+        'Ritual Diário' => 'dailyRitual'
     ];
 
-    // Quebrar a resposta em seções
-    $sections = preg_split('/\r?\n\r?\n/', $response);
+    $interpretations = array_fill_keys(array_values($map), '');
 
-    // Flag para rastrear a seção atual
-    $currentSection = null;
+    // Captura todas as seções com título Markdown e seus conteúdos
+    preg_match_all('/###\s*(.+?)\s*\n+(.+?)(?=(\n###|$))/s', $response, $matches, PREG_SET_ORDER);
 
-    foreach ($sections as $section) {
-        $section = trim($section);
+    foreach ($matches as $match) {
+        $title = trim($match[1]);
+        $content = trim($match[2]);
 
-        // Verificar em qual seção estamos
-        if (preg_match('/^[\d\.\s]*Caminho de Vida:/i', $section)) {
-            $currentSection = 'lifePathMeaning';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Caminho de Vida:\s*/i', '', $section);
-        } elseif (preg_match('/^[\d\.\s]*Talentos e Forças:/i', $section)) {
-            $currentSection = 'lifePathTalents';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Talentos e Forças:\s*/i', '', $section);
-        } elseif (preg_match('/^[\d\.\s]*Número de Destino:/i', $section)) {
-            $currentSection = 'destinyMeaning';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Número de Destino:\s*/i', '', $section);
-        } elseif (preg_match('/^[\d\.\s]*Ano Pessoal:/i', $section)) {
-            $currentSection = 'personalYearMeaning';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Ano Pessoal:\s*/i', '', $section);
-        } elseif (preg_match('/^[\d\.\s]*Desafios:/i', $section)) {
-            $currentSection = 'currentChallenges';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Desafios:\s*/i', '', $section);
-        } elseif (preg_match('/^[\d\.\s]*Oportunidades:/i', $section)) {
-            $currentSection = 'currentOpportunities';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Oportunidades:\s*/i', '', $section);
-        } elseif (preg_match('/^[\d\.\s]*Ritual Diário:/i', $section)) {
-            $currentSection = 'dailyRitual';
-            $interpretations[$currentSection] = preg_replace('/^[\d\.\s]*Ritual Diário:\s*/i', '', $section);
-        } elseif ($currentSection !== null && !empty($section)) {
-            // Adicionar à seção atual se não for um cabeçalho e a seção não estiver vazia
-            $interpretations[$currentSection] .= "\n\n" . $section;
+        // Remover marcações Markdown
+        $content = preg_replace('/\*\*(.*?)\*\*/', '$1', $content); // Remove **negrito**
+        $content = preg_replace('/\*(.*?)\*/', '$1', $content);     // Remove *itálico*
+        $content = preg_replace('/---+/', '', $content);            // Remove linhas horizontais
+        $content = preg_replace('/\n\s*\n/', "\n", $content);       // Remove linhas extras
+        $content = trim($content);                                  // Remove espaços extras
+
+        if (isset($map[$title])) {
+            $interpretations[$map[$title]] = $content;
+        } elseif ($title === 'Desafios e Oportunidades') {
+            // Dividir desafio e oportunidade
+            $split = preg_split('/(?<=\.)\s+(?=A oportunidade|A principal oportunidade|A grande oportunidade)/i', $content, 2);
+            $interpretations['currentChallenges'] = trim($split[0]);
+            if (isset($split[1])) {
+                $interpretations['currentOpportunities'] = trim($split[1]);
+            }
         }
-    }
-
-    // Limpar cada interpretação
-    foreach ($interpretations as $key => $value) {
-        $interpretations[$key] = trim($value);
     }
 
     return $interpretations;
@@ -241,17 +175,11 @@ function getFallbackInterpretation($field, $numerologyData) {
     // Fallbacks básicos para cada campo
     $fallbacks = [
         'lifePathMeaning' => "O Caminho de Vida {$lifePathNumber} representa seu propósito principal nesta existência. Este número revela os talentos inatos e desafios que você enfrentará para alcançar seu maior potencial. Ele serve como um guia para entender sua missão de vida e as lições que você veio aprender.",
-
         'lifePathTalents' => "Com o Caminho de Vida {$lifePathNumber}, você possui talentos naturais que podem estar adormecidos ou subestimados. Desenvolver e expressar esses dons é essencial para seu crescimento pessoal e para cumprir seu propósito maior.",
-
         'destinyMeaning' => "Seu Número de Destino {$destinyNumber} revela as grandes lições que você veio aprender nesta vida. Ele aponta para qualidades e habilidades que deve desenvolver para alcançar seu potencial máximo e realizar sua missão de vida.",
-
         'personalYearMeaning' => "Você está em um Ano Pessoal {$personalYearNumber}, que traz uma energia específica para o período atual até seu próximo aniversário. Esta vibração influencia as experiências, oportunidades e desafios que encontrará neste ciclo.",
-
         'currentChallenges' => "A combinação do seu Caminho de Vida {$lifePathNumber} com seu Ano Pessoal {$personalYearNumber} apresenta desafios específicos neste momento. Estar consciente deles ajuda a navegar este período com mais sabedoria e menos resistência.",
-
         'currentOpportunities' => "A interação entre seu Caminho de Vida {$lifePathNumber} e Ano Pessoal {$personalYearNumber} cria oportunidades únicas neste momento. Reconhecê-las e aproveitá-las pode acelerar seu crescimento e trazer realizações significativas.",
-
         'dailyRitual' => "Um ritual diário baseado no seu Caminho de Vida {$lifePathNumber} pode ajudar a mantê-lo alinhado com seu propósito maior. Dedique alguns minutos por dia para esta prática e observe como ela potencializa sua energia natural."
     ];
 

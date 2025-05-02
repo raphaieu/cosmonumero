@@ -100,6 +100,45 @@ const app = Vue.createApp({
             this.loadingMessage = 'Preparando sua consulta...';
 
             try {
+                // Chamar o backend para obter os resultados
+                const response = await fetch(this.apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'getTestResults',
+                        formData: this.formData
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.message || 'Erro ao buscar resultados');
+                }
+
+                // Atualizar resultados
+                this.results = {
+                    ...this.results,
+                    ...data.results
+                };
+
+                // Mostrar resultados
+                this.isLoading = false;
+                this.showResults = true;
+
+                // Limpar parâmetros da URL para evitar recarregamentos acidentais
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Ocorreu um erro ao carregar sua análise. Por favor, tente novamente.');
+                this.isLoading = false;
+            }
+
+            /*
+            try {
                 // Chamar o backend para criar a preferência de pagamento
                 const response = await fetch(this.apiEndpoint, {
                     method: 'POST',
@@ -144,6 +183,7 @@ const app = Vue.createApp({
                 alert('Ocorreu um erro ao processar sua consulta. Por favor, tente novamente.');
                 this.isLoading = false;
             }
+            */
         },
 
         // Iniciar o checkout do Mercado Pago
@@ -416,12 +456,9 @@ const app = Vue.createApp({
         formatDate(dateString) {
             if (!dateString) return '';
 
-            const date = new Date(dateString);
-            return date.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
+            // Assume o formato 'YYYY-MM-DD' e evita conversão de timezone
+            const [year, month, day] = dateString.split('-');
+            return `${day}/${month}/${year}`;
         },
 
         // Criar efeito de estrelas no background

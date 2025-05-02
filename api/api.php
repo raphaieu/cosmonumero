@@ -3,7 +3,6 @@
  * API principal da aplicação
  * Ponto de entrada para todas as requisições
  */
-
 // Configurações de debug
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -68,7 +67,7 @@ try {
             verifyPayment($data, $mp_access_token);
             break;
         case 'getNumerologyResults':
-            getNumerologyResults($data, $openai_api_key, $openai_assistant_id);
+            getNumerologyResults($data, $openai_api_key);
             break;
         case 'sendEmail':
             sendEmailWithPDF($data);
@@ -77,7 +76,7 @@ try {
             generateAndDownloadPDF($data);
             break;
         case 'getTestResults': // Para testes sem pagamento
-            getTestResults($data, $openai_api_key, $openai_assistant_id);
+            getTestResults($data, $openai_api_key);
             break;
         case 'test':
             echo json_encode([
@@ -226,10 +225,9 @@ function verifyPayment($data, $mp_access_token) {
  *
  * @param array $data Dados da requisição
  * @param string $openai_api_key Chave da API OpenAI
- * @param string $openai_assistant_id ID do assistente OpenAI
  * @return void
  */
-function getNumerologyResults($data, $openai_api_key, $openai_assistant_id) {
+function getNumerologyResults($data, $openai_api_key) {
     // Verificar se os dados necessários foram enviados
     global $logDir;
     if (!isset($data['paymentId']) || !isset($data['formData'])) {
@@ -285,10 +283,9 @@ function getNumerologyResults($data, $openai_api_key, $openai_assistant_id) {
  *
  * @param array $data Dados da requisição
  * @param string $openai_api_key Chave da API OpenAI
- * @param string $openai_assistant_id ID do assistente OpenAI
  * @return void
  */
-function getTestResults($data, $openai_api_key, $openai_assistant_id) {
+function getTestResults($data, $openai_api_key) {
     // Verificar se os dados necessários foram enviados
     global $logDir;
     if (!isset($data['formData'])) {
@@ -303,17 +300,7 @@ function getTestResults($data, $openai_api_key, $openai_assistant_id) {
         // Calcular os números numerológicos
         $numerologyData = calculateNumerology($fullName, $birthDate);
 
-        // Obter interpretações simplificadas para teste
-        $interpretations = [
-            'lifePathMeaning' => "Seu Caminho de Vida {$numerologyData['lifePathNumber']} representa seu propósito nesta existência. Este número revela os talentos e desafios que você enfrentará.",
-            'lifePathTalents' => "Com o Caminho de Vida {$numerologyData['lifePathNumber']}, você possui talentos naturais que podem estar adormecidos.",
-            'destinyMeaning' => "Seu Número de Destino {$numerologyData['destinyNumber']} revela as grandes lições que você veio aprender nesta vida.",
-            'personalYearMeaning' => "Você está em um Ano Pessoal {$numerologyData['personalYearNumber']}, que traz uma energia específica para o período atual.",
-            'currentChallenges' => "A combinação do seu Caminho de Vida {$numerologyData['lifePathNumber']} com seu Ano Pessoal {$numerologyData['personalYearNumber']} apresenta desafios específicos.",
-            'currentOpportunities' => "A interação entre seu Caminho de Vida {$numerologyData['lifePathNumber']} e Ano Pessoal {$numerologyData['personalYearNumber']} cria oportunidades únicas.",
-            'dailyRitual' => "Um ritual diário baseado no seu Caminho de Vida {$numerologyData['lifePathNumber']} pode ajudar a mantê-lo alinhado com seu propósito."
-        ];
-
+        $interpretations = callOpenAIAssistant($fullName, $birthDate, $numerologyData, $openai_api_key);
         // Resultados completos
         $results = array_merge($numerologyData, $interpretations);
 
@@ -467,13 +454,239 @@ function sendEmailWithPDF($data) {
 /**
  * Gerar e fazer download do PDF
  *
- * @param array $data Dados da requisição
+ * @param array $requestData Dados da requisição
  * @return void
  */
-function generateAndDownloadPDF($data) {
-    // Implementação simplificada para teste
-    header('Content-Type: application/json');
-    sendSuccessResponse([
-        'message' => 'PDF gerado com sucesso (simulação)'
-    ]);
+function generateAndDownloadPDF($requestData) {
+    // Verificar se temos os dados necessários
+    if (!isset($requestData['formData']) || !isset($requestData['results'])) {
+        header('Content-Type: application/json');
+        sendErrorResponse(['message' => 'Dados insuficientes para gerar o PDF']);
+        return;
+    }
+
+    // Extrair dados do request
+    $formData = $requestData['formData'];
+    $results = $requestData['results'];
+
+    $name = $formData['fullName'];
+    $birthdate = $formData['birthDate'];
+
+    // Obter os números principais
+    $lifePathNumber = $results['lifePathNumber'] ?? '';
+    $destinyNumber = $results['destinyNumber'] ?? '';
+    $personalYearNumber = $results['personalYearNumber'] ?? '';
+
+    // Análises
+    $analysis = [
+        'lifePathMeaning' => $results['lifePathMeaning'] ?? '',
+        'lifePathTalents' => $results['lifePathTalents'] ?? '',
+        'destinyMeaning' => $results['destinyMeaning'] ?? '',
+        'personalYearMeaning' => $results['personalYearMeaning'] ?? '',
+        'currentChallenges' => $results['currentChallenges'] ?? '',
+        'currentOpportunities' => $results['currentOpportunities'] ?? '',
+        'dailyRitual' => $results['dailyRitual'] ?? ''
+    ];
+
+    // Incluir a biblioteca TCPDF
+    require_once __DIR__ . '/../vendor/autoload.php';
+
+    // Criar nova instância de TCPDF
+    $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+
+    // Remover cabeçalho e rodapé padrão
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+
+    // Configurar cores e fontes
+    $pdf->SetMargins(15, 15, 15);
+    $pdf->SetAutoPageBreak(true, 15);
+    $pdf->SetFont('helvetica', '', 11);
+
+    // Adicionar página
+    $pdf->AddPage();
+
+    // Definir fundo da página com cor escura
+    $pdf->SetFillColor(15, 23, 42); // Cor azul escuro similar ao fundo
+    $pdf->Rect(0, 0, $pdf->getPageWidth(), $pdf->getPageHeight(), 'F');
+
+    // Estilos para o PDF
+    $titleStyle = 'color: #9333EA; font-size: 20pt; font-weight: bold; text-align: center; line-height: 1.5;';
+    $subtitleStyle = 'color: #CBD5E1; font-size: 12pt; text-align: center; line-height: 1.5;';
+    $nameStyle = 'color: #9333EA; font-size: 16pt; font-weight: bold; text-align: center; line-height: 1.5;';
+    $birthdateStyle = 'color: #94A3B8; font-size: 12pt; text-align: center; line-height: 1.5;';
+    $sectionTitleStyle = 'color: #9333EA; font-size: 14pt; font-weight: bold; line-height: 1.5;';
+    $contentStyle = 'color: #E2E8F0; font-size: 11pt; line-height: 1.5;';
+    $footerStyle = 'color: #94A3B8; font-size: 8pt; text-align: center; font-style: italic;';
+
+    // Título principal
+    $pdf->writeHTML('<h1 style="' . $titleStyle . '">Numerologia Cósmica</h1>', true, false, true, false, 'C');
+    $pdf->writeHTML('<p style="' . $subtitleStyle . '">Descubra seu propósito, desafios e oportunidades através dos números que regem sua vida</p>', true, false, true, false, 'C');
+
+    // Espaço
+    $pdf->Ln(10);
+
+    // Nome e data de nascimento
+    $pdf->writeHTML('<h2 style="' . $nameStyle . '">' . $name . '</h2>', true, false, true, false, 'C');
+    $birthdate_formatted = date('d/m/Y', strtotime($birthdate));
+    $pdf->writeHTML('<p style="' . $birthdateStyle . '">' . $birthdate_formatted . '</p>', true, false, true, false, 'C');
+
+    // Espaço
+    $pdf->Ln(10);
+
+    // Função para criar um círculo com número
+    function addCircleWithNumber($pdf, $number, $x, $y, $r = 8) {
+        $pdf->SetFillColor(147, 51, 234); // Cor roxa
+        $pdf->Circle($x, $y, $r, 0, 360, 'F');
+        $pdf->SetTextColor(255, 255, 255); // Texto branco
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->SetXY($x - $r, $y - $r/2);
+        $pdf->Cell(2*$r, $r, $number, 0, 0, 'C');
+        $pdf->SetTextColor(0, 0, 0); // Restaurar cor do texto
+        $pdf->SetFont('helvetica', '', 11);
+    }
+
+    // Adicionar método Circle se não existir no TCPDF
+    if (!method_exists($pdf, 'Circle')) {
+        $pdf->Circle = function($x, $y, $r, $angstart = 0, $angend = 360, $style = 'D', $line_style = array(), $fill_color = array(), $nc = 8) use ($pdf) {
+            $pdf->Ellipse($x, $y, $r, $r, 0, $angstart, $angend, $style, $line_style, $fill_color, $nc);
+        };
+    }
+
+    // Seção: Caminho de Vida
+    if (!empty($analysis['lifePathMeaning'])) {
+        // Posição atual
+        $curY = $pdf->GetY() + 10;
+
+        // Adicionar círculo com número
+        addCircleWithNumber($pdf, $lifePathNumber, 25, $curY);
+
+        // Título da seção
+        $pdf->SetXY(35, $curY - 5);
+        $pdf->writeHTML('<span style="' . $sectionTitleStyle . '">Número do Caminho de Vida</span>', true, false, true, false);
+
+        // Conteúdo
+        $pdf->SetXY(15, $curY + 5);
+        $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['lifePathMeaning'] . '</div>', true, false, true, false);
+
+        // Atualizar posição Y
+        $pdf->SetY($pdf->GetY() + 10);
+    }
+
+    // Seção: Talentos e Forças
+    if (!empty($analysis['lifePathTalents'])) {
+        // Posição atual
+        $curY = $pdf->GetY() + 10;
+
+        // Título da seção
+        $pdf->SetXY(25, $curY - 5);
+        $pdf->writeHTML('<span style="' . $sectionTitleStyle . '">Talentos e Forças Naturais</span>', true, false, true, false);
+
+        // Conteúdo
+        $pdf->SetXY(15, $curY + 5);
+        $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['lifePathTalents'] . '</div>', true, false, true, false);
+
+        // Atualizar posição Y
+        $pdf->SetY($pdf->GetY() + 10);
+    }
+
+    // Seção: Número de Destino
+    if (!empty($analysis['destinyMeaning'])) {
+
+        // Posição atual
+        $curY = $pdf->GetY() + 10;
+
+        // Adicionar círculo com número
+        addCircleWithNumber($pdf, $destinyNumber, 25, $curY);
+
+        // Título da seção
+        $pdf->SetXY(35, $curY - 5);
+        $pdf->writeHTML('<span style="' . $sectionTitleStyle . '">Número de Destino</span>', true, false, true, false);
+
+        // Conteúdo
+        $pdf->SetXY(15, $curY + 5);
+        $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['destinyMeaning'] . '</div>', true, false, true, false);
+
+        // Atualizar posição Y
+        $pdf->SetY($pdf->GetY() + 10);
+    }
+
+    // Adicionar nova página se necessário
+    if ($pdf->GetY() > 200) {
+        $pdf->AddPage();
+        // Definir fundo da nova página
+        $pdf->SetFillColor(15, 23, 42);
+        $pdf->Rect(0, 0, $pdf->getPageWidth(), $pdf->getPageHeight(), 'F');
+    }
+
+    // Seção: Ano Pessoal
+    if (!empty($analysis['personalYearMeaning'])) {
+
+        // Posição atual
+        $curY = $pdf->GetY() + 10;
+
+        // Adicionar círculo com número
+        addCircleWithNumber($pdf, $personalYearNumber, 25, $curY);
+
+        // Título da seção
+        $pdf->SetXY(35, $curY - 5);
+        $pdf->writeHTML('<span style="' . $sectionTitleStyle . '">Ano Pessoal</span>', true, false, true, false);
+
+        // Conteúdo
+        $pdf->SetXY(15, $curY + 5);
+        $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['personalYearMeaning'] . '</div>', true, false, true, false);
+
+        // Atualizar posição Y
+        $pdf->SetY($pdf->GetY() + 10);
+    }
+
+    // Seção: Desafios e Oportunidades
+    if (!empty($analysis['currentChallenges'])) {
+
+        // Posição atual
+        $curY = $pdf->GetY() + 10;
+
+        // Título da seção
+        $pdf->SetXY(25, $curY - 5);
+        $pdf->writeHTML('<span style="' . $sectionTitleStyle . '">Principais Desafios e Oportunidades</span>', true, false, true, false);
+
+        // Conteúdo
+        $pdf->SetXY(15, $curY + 5);
+        $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['currentChallenges'] . '</div>', true, false, true, false);
+
+        // Adicionar oportunidades se existirem
+        if (!empty($analysis['currentOpportunities'])) {
+            $pdf->SetY($pdf->GetY() + 5);
+            $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['currentOpportunities'] . '</div>', true, false, true, false);
+        }
+
+        // Atualizar posição Y
+        $pdf->SetY($pdf->GetY() + 10);
+    }
+
+    // Seção: Ritual Diário
+    if (!empty($analysis['dailyRitual'])) {
+
+        // Posição atual
+        $curY = $pdf->GetY() + 10;
+
+        // Título da seção
+        $pdf->SetXY(25, $curY - 5);
+        $pdf->writeHTML('<span style="' . $sectionTitleStyle . '">Ritual Diário Recomendado</span>', true, false, true, false);
+
+        // Conteúdo
+        $pdf->SetXY(15, $curY + 5);
+        $pdf->writeHTML('<div style="' . $contentStyle . '">' . $analysis['dailyRitual'] . '</div>', true, false, true, false);
+    }
+
+    // Rodapé
+    $pdf->SetY(-15);
+    $pdf->writeHTML('<p style="' . $footerStyle . '">© ' . date('Y') . ' CosmoNúmeroAI. Todos os direitos reservados. https://ckao.in/cosmonumero/</p>', true, false, true, false, 'C');
+
+    // Gerar o nome do arquivo
+    $filename = 'Numerologia_' . preg_replace('/[^a-zA-Z0-9]/', '_', $name) . '.pdf';
+
+    // Enviar para o navegador
+    $pdf->Output($filename, 'D');
+    exit;
 }
