@@ -1,8 +1,15 @@
-# Numerologia Cósmica
+# CosmoNúmero - Análise Numerológica
 
 Aplicação web para consultas numerológicas personalizadas, com integração ao OpenAI e Mercado Pago.
 
-## Visão Geral
+<p align="center">
+  <img src="https://img.shields.io/badge/PHP-8.3-777BB4.svg?style=flat&logo=php" alt="PHP 8.3">
+  <img src="https://img.shields.io/badge/Vue.js-3.0-4FC08D.svg?style=flat&logo=vue.js" alt="Vue.js 3">
+  <img src="https://img.shields.io/badge/TailwindCSS-3-06B6D4.svg?style=flat&logo=tailwindcss" alt="TailwindCSS">
+  <img src="https://img.shields.io/badge/SQLite-003B57.svg?style=flat&logo=sqlite" alt="SQLite">
+</p>
+
+## 📋 Visão Geral
 
 Esta aplicação permite aos usuários obter uma análise numerológica personalizada com base em seu nome completo e data de nascimento, incluindo:
 
@@ -12,18 +19,75 @@ Esta aplicação permite aos usuários obter uma análise numerológica personal
 4. Geração e envio de PDFs personalizados por e-mail
 5. Armazenamento de dados em banco de dados SQLite
 
-## Requisitos
+## ✨ Demo
 
-- PHP 7.4+ com extensões:
+Acesse [https://ckao.in/cosmonumero/](https://ckao.in/cosmonumero/) para ver a aplicação em produção.
+
+## 🔧 Requisitos
+
+- PHP 8.3+ com extensões:
     - SQLite3
     - cURL
     - mbstring
     - PDO
-- Biblioteca TCPDF (pode ser instalada via Composer)
+- Biblioteca TCPDF (instalada via Composer)
 - Servidor web (Apache ou Nginx)
 - Acesso à internet para integração com APIs externas
 
-## Instalação em Produção
+## 🚀 Instalação Local
+
+### 1. Clonar o repositório
+
+```bash
+git clone https://github.com/seu-usuario/cosmonumero.git
+cd cosmonumero
+```
+
+### 2. Instalar dependências
+
+```bash
+composer install
+```
+
+### 3. Configurar variáveis de ambiente
+
+Copie o arquivo `.env.example` para `.env` e configure as variáveis:
+
+```bash
+cp .env.example .env
+```
+
+Edite o arquivo `.env` com suas credenciais:
+
+```
+ENV=development
+MP_BASE_URL=http://localhost/cosmonumero
+OPENAI_API_KEY=your_openai_api_key
+MP_ACCESS_TOKEN=your_mercadopago_access_token
+OPENAI_MODEL=gpt-4.1
+MP_PUBLIC_KEY=your_mercadopago_public_key
+MP_WEBHOOK_KEY=your_webhook_signature_key
+```
+
+### 4. Configurar permissões de diretórios
+
+```bash
+# Criar diretórios necessários
+mkdir -p logs temp pdfs database
+
+# Configurar permissões
+chmod -R 755 logs temp pdfs database
+```
+
+### 5. Iniciar servidor de desenvolvimento
+
+```bash
+php -S localhost:8000
+```
+
+Acesse `http://localhost:8000` no seu navegador.
+
+## 🌐 Instalação em Produção
 
 ### 1. Preparar o servidor
 
@@ -39,18 +103,37 @@ chmod -R 755 /var/www/html/cosmonumero
 cd /var/www/html/cosmonumero
 ```
 
-### 2. Fazer upload dos arquivos
-
-Upload todos os arquivos do projeto para o servidor usando FTP, SCP ou outro método.
-
-### 3. Instalar dependências (opcional)
+### 2. Clonar o repositório
 
 ```bash
-# Se usar Composer para TCPDF
-composer require tecnickcom/tcpdf
+git clone https://github.com/seu-usuario/cosmonumero.git .
 ```
 
-### 4. Configurar permissões de diretórios
+### 3. Instalar dependências
+
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+### 4. Configurar variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Edite o arquivo `.env` com suas credenciais de produção:
+
+```
+ENV=production
+MP_BASE_URL=https://seu-dominio.com/cosmonumero
+OPENAI_API_KEY=your_openai_api_key
+MP_ACCESS_TOKEN=your_mercadopago_access_token
+OPENAI_MODEL=gpt-4.1
+MP_PUBLIC_KEY=your_mercadopago_public_key
+MP_WEBHOOK_KEY=your_webhook_signature_key
+```
+
+### 5. Configurar permissões de diretórios
 
 ```bash
 # Criar diretórios necessários
@@ -61,74 +144,101 @@ chmod -R 755 logs temp pdfs database
 chown -R www-data:www-data logs temp pdfs database
 ```
 
-### 5. Configurar credenciais das APIs
+### 6. Configurar o .htaccess
 
-Edite o arquivo `api/api.php` e atualize as seguintes credenciais:
-
-```php
-// Credenciais da OpenAI
-$openai_api_key = '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';
-$openai_assistant_id = 'asst_CA8Yo9SaiNhBZVRcCJXQZX0I';
-
-// Credenciais do Mercado Pago
-$mp_access_token = 'APP_USR-8427023500547057-050113-5f3c2441f8b60a7ac66fd3c0ee0cfc71-1901198';
-```
-
-### 6. Configurar URLs de callback do Mercado Pago
-
-Edite o arquivo `api/checkout/mercadopago.php` e atualize as URLs de callback:
-
-```php
-// URLs de callback
-$base_url = 'https://ckao.in/cosmonumero';
-```
-
-### 7. Configurar regras de segurança
-
-Edite o arquivo `.htaccess` e descomente as regras de segurança para produção:
-
-```apache
-# Redirecionar HTTP para HTTPS
-RewriteCond %{HTTPS} off
-RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-# Headers de segurança
-Header set Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.mercadopago.com;"
-```
-
-### 8. Configurar Virtual Host no Apache
-
-```apache
-<VirtualHost *:80>
-    ServerName ckao.in
-    ServerAlias www.ckao.in
-    DocumentRoot /var/www/html
-    
-    <Directory /var/www/html>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-    
-    ErrorLog ${APACHE_LOG_DIR}/ckao.in-error.log
-    CustomLog ${APACHE_LOG_DIR}/ckao.in-access.log combined
-    
-    <Directory /var/www/html/cosmonumero>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
-
-### 9. Habilitar a configuração do site e reiniciar o Apache
+O projeto já inclui um arquivo `.htaccess` com configurações de segurança. Verifique se seu servidor Apache tem o módulo `mod_rewrite` habilitado:
 
 ```bash
-a2ensite ckao.in.conf
+a2enmod rewrite
+a2enmod headers
 systemctl restart apache2
 ```
 
-## Estrutura de Diretórios
+Conteúdo do `.htaccess`:
+
+```apache
+# Disable directory listing
+Options -Indexes
+
+# Force HTTPS
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# HTTP Security Headers
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set X-XSS-Protection "1; mode=block"
+  Header always set Referrer-Policy "no-referrer-when-downgrade"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.mercadopago.com https://api.openai.com; frame-ancestors 'none';"
+</IfModule>
+```
+
+Certifique-se de que o Apache esteja configurado para permitir substituições com `.htaccess`. Em `/etc/apache2/sites-available/000-default.conf` ou na configuração do seu virtual host, confirme que você tem:
+
+```apache
+<Directory /var/www/html>
+    AllowOverride All
+</Directory>
+```
+
+## 🔄 Deploy Automático com GitHub Actions
+
+Este projeto está configurado para deploy automático na Hostinger usando GitHub Actions. Cada push para a branch `main` inicia o pipeline de CI/CD.
+
+### Configuração do GitHub Actions
+
+1. No seu repositório GitHub, vá para **Settings** > **Secrets and variables** > **Actions**
+2. Adicione as seguintes secrets:
+   - `VPS_HOST`: Endereço IP da sua VPS
+   - `VPS_USER`: Nome do usuário SSH (recomendado usar um usuário dedicado como 'deploy')
+   - `VPS_SSH_PORT`: Porta SSH (geralmente 22)
+   - `VPS_SSH_KEY`: Chave SSH privada para autenticação
+   - `VPS_REMOTE_PATH`: Caminho para o diretório no servidor (ex: `/www/wwwroot/ckao.in/cosmonumero/`)
+
+### Workflow de Deploy
+
+O workflow `.github/workflows/deploy.yml` realiza as seguintes etapas:
+
+1. Checkout do código-fonte
+2. Instalação do PHP 8.3
+3. Instalação das dependências com Composer
+4. Deploy dos arquivos via rsync para a VPS
+
+### Como criar um usuário de deploy na VPS
+
+Para melhor segurança, crie um usuário dedicado para deploy:
+
+```bash
+# Conecte ao servidor como root
+ssh root@seu_servidor
+
+# Criar o usuário deploy
+adduser deploy
+
+# Adicionar o usuário ao grupo www-data
+usermod -aG www-data deploy
+
+# Configurar diretório para o projeto
+mkdir -p /www/wwwroot/seu-dominio.com/cosmonumero
+chown -R deploy:www-data /www/wwwroot/seu-dominio.com/cosmonumero
+chmod -R 755 /www/wwwroot/seu-dominio.com/cosmonumero
+
+# Configurar permissões SSH
+su - deploy
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+touch ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+Adicione a chave pública correspondente à chave privada configurada no GitHub ao arquivo `~/.ssh/authorized_keys` do usuário `deploy`.
+
+## 📁 Estrutura de Diretórios
 
 ```
 /cosmonumero/
@@ -146,20 +256,20 @@ systemctl restart apache2
 └── database/               # Banco de dados SQLite
 ```
 
-## Testes
+## 🧪 Testes
 
-Para testar a integração com o Mercado Pago:
+### Testar a integração com o Mercado Pago
 
-1. Use a conta de teste do Mercado Pago
-2. Efetue um pagamento de teste
+1. Configure uma conta de teste do Mercado Pago
+2. Efetue um pagamento de teste usando o ambiente de sandbox
 3. Verifique os logs em `logs/checkout.log` e `logs/webhook.log`
 
-Para testar a integração com a OpenAI:
+### Testar a integração com a OpenAI
 
 1. Faça uma requisição de teste para `api/api.php` com ação "getTestResults"
 2. Verifique a resposta e os logs em `logs/openai_error.log`
 
-## Manutenção
+## 🛠️ Manutenção
 
 ### Backup
 
@@ -179,18 +289,17 @@ tail -f logs/checkout.log
 tail -f logs/webhook.log
 ```
 
-### Atualização
+## 🔐 Segurança
 
-Para atualizar a aplicação, substitua os arquivos mantendo os diretórios:
+- Todas as requisições POST são protegidas com tokens CSRF
+- Configurações de cookies seguros (HttpOnly, Secure, SameSite)
+- Sanitização de entrada de dados
+- Rate limiting para prevenir ataques de força bruta
 
-```bash
-# Fazer backup
-cp -r /var/www/html/cosmonumero /var/www/html/cosmonumero.backup
+## 📄 Licença
 
-# Atualizar arquivos
-# Manter diretórios de dados
-```
+Este projeto está licenciado sob a [MIT License](LICENSE).
 
-## Suporte
+## 📞 Suporte
 
-Para suporte, entre em contato com o desenvolvedor.
+Para suporte, abra uma issue no GitHub ou entre em contato através do email de suporte.
