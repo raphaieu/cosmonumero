@@ -2,8 +2,7 @@
 /**
  * Integração com a API da OpenAI para interpretações numerológicas
  */
-global $openai_api_key;
-$openai_api_key = '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';
+// API key is injected from environment by api/api.php using Dotenv
 
 /**
  * Chamar o assistente da OpenAI
@@ -12,7 +11,7 @@ $openai_api_key = 'sk-proj-v28wNaiHGLL8qn14gqomGHSSI8fgnaRCey9TafuOIuLs_kbGdxLQ2
  * @param string $birthDate Data de nascimento
  * @param array $numerologyData Dados numerológicos calculados
  * @param string $api_key Chave da API OpenAI
- * @return string Resposta do assistente
+ * @return array Resposta do assistente
  * @throws Exception
  */
 function callOpenAIAssistant($fullName, $birthDate, $numerologyData, $api_key) {

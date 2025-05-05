@@ -3,9 +3,59 @@
  * API principal da aplicação
  * Ponto de entrada para todas as requisições
  */
-// Configurações de debug
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// Autoload and environment config
+require_once __DIR__ . '/../vendor/autoload.php';
+// Secure session settings
+ini_set('session.cookie_secure', 1);
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_samesite', 'Strict');
+session_start();
+
+// Generate CSRF token if missing
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+// Provide CSRF token via GET
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $action = $_GET['action'] ?? '';
+    if ($action === 'getCsrfToken') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'csrfToken' => $_SESSION['csrf_token']]);
+        exit;
+    }
+    if ($action === 'getConfig') {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'config' => [
+                'csrfToken'    => $_SESSION['csrf_token'],
+                'mpPublicKey'  => ($_ENV['MP_PUBLIC_KEY'] ?? 'APP_USR-20845c57-b2d8-4550-9789-3e4b309d92d2'),
+                'apiEndpoint'  => 'api/api.php',
+                'mpBaseUrl'    => ($_ENV['MP_BASE_URL'] ?? 'https://ckao.in/cosmonumero/')
+            ]
+        ]);
+        exit;
+    }
+}
+// Load .env
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+$dotenv->safeLoad();
+
+// Environment variables
+$env = $_ENV['ENV'] ?? 'production';
+$openai_api_key = $_ENV['OPENAI_API_KEY'] ?? '';
+$mp_access_token = $_ENV['MP_ACCESS_TOKEN'] ?? '';
+$mp_base_url = rtrim($_ENV['MP_BASE_URL'] ?? '', '/');
+$openai_model = $_ENV['OPENAI_MODEL'] ?? 'gpt-4.1';
+
+// Configure error display
+if ($env === 'production') {
+    ini_set('display_errors', 0);
+    error_reporting(0);
+} else {
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+}
 
 // Define o caminho base do projeto
 define('BASE_PATH', realpath(__DIR__ . '/..'));
@@ -28,12 +78,47 @@ header('Content-Type: application/json');
 // Definir zona de tempo
 date_default_timezone_set('America/Sao_Paulo');
 
-// Incluir arquivos necessários
+// Include necessary modules
 require_once __DIR__ . '/checkout/mercadopago.php';
 require_once __DIR__ . '/numerology/calculator.php';
 require_once __DIR__ . '/numerology/openai.php';
 require_once __DIR__ . '/pdf/generator.php';
 require_once __DIR__ . '/database/database.php';
+/**
+ * Simple rate limiter: max $maxRequests per $minutes for each IP
+ * Stores counters in temp directory
+ */
+function checkRateLimit(int $maxRequests = 60, int $minutes = 1) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $file = BASE_PATH . "/temp/ratelimit_" . md5($ip) . ".json";
+    if (!is_dir(dirname($file))) {
+        mkdir(dirname($file), 0755, true);
+    }
+    $now = time();
+    if (file_exists($file)) {
+        $data = json_decode(file_get_contents($file), true);
+        $count = $data['count'] ?? 0;
+        $start = $data['start'] ?? $now;
+        if ($now - $start < $minutes * 60) {
+            if ($count >= $maxRequests) {
+                sendErrorResponse('Too many requests. Rate limit exceeded.', 429);
+            }
+            $count++;
+        } else {
+            $count = 1;
+            $start = $now;
+        }
+    } else {
+        $count = 1;
+        $start = $now;
+    }
+    file_put_contents($file, json_encode(['count' => $count, 'start' => $start]));
+}
+// Helper: valid date in expected format
+function validateDate(string $date, string $format = 'Y-m-d'): bool {
+    $d = DateTime::createFromFormat($format, $date);
+    return $d && $d->format($format) === $date;
+}
 
 // Verificar método de requisição
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -54,19 +139,54 @@ if (!isset($data['action'])) {
     sendErrorResponse('Ação não especificada', 400);
 }
 
+// Verify CSRF token for all POST requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrfHeader = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrfHeader)) {
+        sendErrorResponse('CSRF token inválido', 403);
+    }
+}
 // Criar diretórios necessários se não existirem
 initializeDirectories();
 
+// Rate limiting: max 60 requests per minute per IP
+checkRateLimit();
 // Processar com base na ação
 try {
     switch ($data['action']) {
         case 'createPayment':
+            // Input validation
+            if (!isset($data['amount'], $data['description'], $data['formData']['fullName'], $data['formData']['birthDate'])
+                || !is_numeric($data['amount'])
+                || !is_string($data['description'])
+                || !is_string($data['formData']['fullName'])
+                || !validateDate($data['formData']['birthDate'], 'Y-m-d')
+            ) {
+                sendErrorResponse('Dados inválidos para criação de pagamento', 400);
+            }
+            // sanitize input
+            $data['amount'] = (float) $data['amount'];
+            $data['description'] = trim($data['description']);
+            $data['formData']['fullName'] = trim($data['formData']['fullName']);
             createPayment($data, $mp_access_token);
             break;
         case 'verifyPayment':
+            // Input validation
+            if (!isset($data['paymentId']) || !is_string($data['paymentId'])) {
+                sendErrorResponse('ID de pagamento inválido', 400);
+            }
+            $data['externalReference'] = isset($data['externalReference']) && is_string($data['externalReference']) ? $data['externalReference'] : null;
             verifyPayment($data, $mp_access_token);
             break;
         case 'getNumerologyResults':
+            // Input validation
+            if (!isset($data['paymentId'], $data['formData']['fullName'], $data['formData']['birthDate'])
+                || !is_string($data['paymentId'])
+                || !is_string($data['formData']['fullName'])
+                || !validateDate($data['formData']['birthDate'], 'Y-m-d')
+            ) {
+                sendErrorResponse('Dados inválidos para análise numerológica', 400);
+            }
             getNumerologyResults($data, $openai_api_key);
             break;
         case 'sendEmail':
@@ -76,6 +196,13 @@ try {
             generateAndDownloadPDF($data);
             break;
         case 'getTestResults': // Para testes sem pagamento
+            // Input validation
+            if (!isset($data['formData']['fullName'], $data['formData']['birthDate'])
+                || !is_string($data['formData']['fullName'])
+                || !validateDate($data['formData']['birthDate'], 'Y-m-d')
+            ) {
+                sendErrorResponse('Dados inválidos para análise de teste', 400);
+            }
             getTestResults($data, $openai_api_key);
             break;
         case 'test':
@@ -303,7 +430,7 @@ function getTestResults($data, $openai_api_key) {
         $interpretations = callOpenAIAssistant($fullName, $birthDate, $numerologyData, $openai_api_key);
         // Resultados completos
         $results = array_merge($numerologyData, $interpretations);
-
+        file_put_contents($logDir . '/debug.log', date('Y-m-d H:i:s') . " - Resultado: " . json_encode($results) . "\n", FILE_APPEND);
         // Retornar resultados
         sendSuccessResponse([
             'results' => $results

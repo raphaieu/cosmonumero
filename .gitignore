@@ -3,3 +3,5 @@
 /temp/
 /pdfs/
 /logs/
+.env
+.env.local

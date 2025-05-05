@@ -2,8 +2,8 @@
 /**
  * Integração com o Mercado Pago
  */
+// Mercado Pago access token is provided via environment and set in api/api.php
 global $mp_access_token;
-$mp_access_token = 'APP_USR-8427023500547057-050113-5f3c2441f8b60a7ac66fd3c0ee0cfc71-1901198';
 /**
  * Criar preferência de pagamento no Mercado Pago
  *
@@ -19,8 +19,9 @@ function createMercadoPagoPreference($description, $amount, $customer_name, $bir
     // URL da API
     $url = 'https://api.mercadopago.com/checkout/preferences';
 
-    // URLs de callback
-    $base_url = 'https://ckao.in/cosmonumero';
+    // URLs de callback (set via ENV MP_BASE_URL)
+    global $mp_base_url;
+    $base_url = $mp_base_url;
 
     // Dados da preferência
     $preference_data = [

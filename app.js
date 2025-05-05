@@ -31,25 +31,39 @@ const app = Vue.createApp({
                 dailyRitual: '',
                 transactionId: '' // Para referência do pagamento
             },
-            // Mercado Pago
+            // Mercado Pago SDK and responses
             mp: null,
             mpResponse: null,
-            // Config
-            apiEndpoint: 'api/api.php', // Endpoint do nosso backend
-            paymentAmount: 0.15 // Valor da consulta
+            // Configuration (loaded from backend)
+            apiEndpoint: '',    // will be fetched via getConfig
+            mpPublicKey: '',     // Mercado Pago public key
+            mpBaseUrl: '',       // base URL for redirect callbacks
+            csrfToken: '',       // CSRF token
+            paymentAmount: 0.15  // Valor da consulta
         };
     },
     mounted() {
-        // Inicializar o Mercado Pago SDK
-        this.mp = new MercadoPago('APP_USR-20845c57-b2d8-4550-9789-3e4b309d92d2', {
-            locale: 'pt-BR'
-        });
-
-        // Criar efeito de estrelas no fundo
-        this.createStars();
-
-        // Verificar parâmetros de URL (retorno do Mercado Pago)
-        this.checkUrlParams();
+        // Load config (CSRF token, Mercado Pago public key, API endpoint, base URL)
+        fetch('api/api.php?action=getConfig')
+          .then(res => res.json())
+          .then(json => {
+            if (json.success && json.config) {
+              this.apiEndpoint  = json.config.apiEndpoint;
+              this.csrfToken    = json.config.csrfToken;
+              this.mpPublicKey  = json.config.mpPublicKey;
+              this.mpBaseUrl    = json.config.mpBaseUrl;
+              // Initialize Mercado Pago SDK
+              this.mp = new MercadoPago(this.mpPublicKey, { locale: 'pt-BR' });
+            } else {
+              console.warn('Failed to load config:', json);
+            }
+          })
+          .catch(err => console.warn('Error loading config:', err))
+          .finally(() => {
+            // Background stars and URL params only after config
+            this.createStars();
+            this.checkUrlParams();
+          });
     },
     methods: {
         // Verificar parâmetros de URL
@@ -104,7 +118,8 @@ const app = Vue.createApp({
                 const response = await fetch(this.apiEndpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': this.csrfToken
                     },
                     body: JSON.stringify({
                         action: 'getTestResults',
@@ -118,11 +133,14 @@ const app = Vue.createApp({
                     throw new Error(data.message || 'Erro ao buscar resultados');
                 }
 
-                // Atualizar resultados
-                this.results = {
-                    ...this.results,
-                    ...data.results
-                };
+                // Atualizar resultados e sanitize HTML
+                this.results = { ...this.results, ...data.results };
+                // Sanitize any HTML before v-html
+                Object.keys(this.results).forEach(key => {
+                    if (typeof this.results[key] === 'string') {
+                        this.results[key] = DOMPurify.sanitize(this.results[key]);
+                    }
+                });
 
                 // Mostrar resultados
                 this.isLoading = false;
@@ -287,7 +305,8 @@ const app = Vue.createApp({
                 const response = await fetch(this.apiEndpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': this.csrfToken
                     },
                     body: JSON.stringify({
                         action: 'getNumerologyResults',
@@ -303,12 +322,13 @@ const app = Vue.createApp({
                     throw new Error(data.message || 'Erro ao buscar resultados');
                 }
 
-                // Atualizar resultados
-                this.results = {
-                    ...this.results,
-                    ...data.results,
-                    transactionId: paymentId
-                };
+                // Atualizar e sanitizar resultados
+                this.results = { ...this.results, ...data.results, transactionId: paymentId };
+                Object.keys(this.results).forEach(key => {
+                    if (typeof this.results[key] === 'string') {
+                        this.results[key] = DOMPurify.sanitize(this.results[key]);
+                    }
+                });
 
                 // Mostrar resultados
                 this.isLoading = false;
@@ -339,7 +359,8 @@ const app = Vue.createApp({
                 const response = await fetch(this.apiEndpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': this.csrfToken
                     },
                     body: JSON.stringify({
                         action: 'sendEmail',
@@ -378,7 +399,8 @@ const app = Vue.createApp({
                 const response = await fetch(this.apiEndpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': this.csrfToken
                     },
                     body: JSON.stringify({
                         action: 'generatePDF',

@@ -3,17 +3,29 @@
  * Webhook para receber notificações do Mercado Pago
  */
 
-// Configurações
+// Webhook security & environment
 header('Content-Type: application/json');
-
-// Incluir arquivos necessários
+// Load .env
+require_once __DIR__ . '/../../vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../../');
+$dotenv->safeLoad();
+// Validate Mercado Pago webhook signature
+$webhookSecret = $_ENV['MP_WEBHOOK_KEY'] ?? '';
+$rawBody = file_get_contents('php://input');
+$signature = $_SERVER['HTTP_X_MERCADOPAGO_SIGNATURE'] ?? '';
+if (empty($webhookSecret) || empty($signature) || !hash_equals(hash_hmac('sha256', $rawBody, $webhookSecret), $signature)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Invalid webhook signature']);
+    exit;
+}
+// Include Mercado Pago integration
 require_once './mercadopago.php';
 
 // Definir log
 $logFile = __DIR__ . '/../../logs/webhook.log';
 
 // Registrar recebimento
-logWebhook('Webhook recebido: ' . file_get_contents('php://input'));
+logWebhook('Webhook recebido: ' . $rawBody);
 
 // Obter e decodificar os dados JSON enviados
 $json_data = file_get_contents('php://input');
