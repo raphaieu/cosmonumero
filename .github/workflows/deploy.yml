@@ -49,16 +49,20 @@ jobs:
       - name: Adding Known Hosts
         run: ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
       
-      # Deploy com rsync diretamente
+      # Deploy com rsync modificado para preservar diretórios de dados
       - name: Deploy with rsync
         run: |
-          rsync -avz --delete \
+          rsync -avz \
           --exclude=".git/" \
           --exclude=".github/" \
           --exclude=".gitignore" \
           --exclude="README.md" \
           --exclude=".env" \
           --exclude=".env.example" \
+          --exclude="logs/" \
+          --exclude="temp/" \
+          --exclude="pdfs/" \
+          --exclude="database/" \
           ./ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_REMOTE_PATH }} \
           -e "ssh -p ${{ secrets.VPS_SSH_PORT }} -o StrictHostKeyChecking=no"
       
