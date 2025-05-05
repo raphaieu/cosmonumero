@@ -13,17 +13,31 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 7.4
+          php-version: '8.3'
       - name: Install dependencies
         run: composer install --no-dev --optimize-autoloader
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Restore cached dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
       - name: Deploy via rsync
-        uses: burnett01/rsync-deployments@v1.1.5
+        uses: burnett01/rsync-deployments@6.0.0
         with:
           switches: -avz --delete
           path: ./
@@ -35,16 +49,9 @@ jobs:
           exclude: |
             .git/
             .github/
-            vendor/
-      - name: Run post-deploy commands
-        uses: appleboy/ssh-action@v0.1.9
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_SSH_PORT }}
-          script: |
-            cd ${{ secrets.VPS_REMOTE_PATH }}
-            composer install --no-dev --optimize-autoloader
+            .gitignore
+            README.md
+            .env
+            .env.example
       - name: Completed
         run: echo "Deployment to VPS completed successfully"
