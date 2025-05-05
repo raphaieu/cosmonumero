@@ -17,3 +17,27 @@ Options -Indexes
   Header always set Referrer-Policy "no-referrer-when-downgrade"
   Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.mercadopago.com https://api.openai.com; frame-ancestors 'none';"
 </IfModule>
+
+# Bloquear acesso a diretórios sensíveis com Apache 2.4+
+<DirectoryMatch "^/(logs|temp|pdfs|database)/">
+    Require all denied
+</DirectoryMatch>
+
+# Bloquear acesso a diretórios sensíveis com Apache 2.2
+<IfModule !mod_authz_core.c>
+    <DirectoryMatch "^/(logs|temp|pdfs|database)/">
+        Order deny,allow
+        Deny from all
+    </DirectoryMatch>
+</IfModule>
+
+# Bloquear arquivos específicos
+<FilesMatch "\.(log|db|sqlite)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>

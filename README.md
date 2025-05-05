@@ -144,7 +144,9 @@ chmod -R 755 logs temp pdfs database
 chown -R www-data:www-data logs temp pdfs database
 ```
 
-### 6. Configurar o .htaccess
+### 6. Configuração do Servidor Web
+
+#### Para Apache
 
 O projeto já inclui um arquivo `.htaccess` com configurações de segurança. Verifique se seu servidor Apache tem o módulo `mod_rewrite` habilitado:
 
@@ -186,6 +188,81 @@ Certifique-se de que o Apache esteja configurado para permitir substituições c
 </Directory>
 ```
 
+#### Para Nginx
+
+Se você estiver usando Nginx, adicione estas configurações ao arquivo do seu site (geralmente em `/etc/nginx/sites-available/seu-site.conf`):
+
+```nginx
+server {
+    # Configurações básicas
+    listen 80;
+    server_name seu-dominio.com;
+    root /www/wwwroot/seu-dominio.com/cosmonumero;
+    index index.php index.html;
+
+    # Redirecionar HTTP para HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    # Configurações HTTPS
+    listen 443 ssl;
+    server_name seu-dominio.com;
+    root /www/wwwroot/seu-dominio.com/cosmonumero;
+    index index.php index.html;
+
+    # Configurações SSL
+    ssl_certificate /etc/letsencrypt/live/seu-dominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/seu-dominio.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # Cabeçalhos de segurança
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.mercadopago.com https://api.openai.com; frame-ancestors 'none';" always;
+
+    # Bloquear acesso a diretórios sensíveis
+    location ~ ^/(logs|temp|pdfs|database)/ {
+        deny all;
+        return 403;
+    }
+
+    # Bloquear acesso a arquivos de log e banco de dados
+    location ~* \.(log|db|sqlite)$ {
+        deny all;
+        return 403;
+    }
+
+    # Configuração PHP
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    # Desabilitar acesso a arquivos ocultos
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+}
+```
+
+Após editar, teste e reinicie o Nginx:
+
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
 ## 🔄 Deploy Automático com GitHub Actions
 
 Este projeto está configurado para deploy automático na Hostinger usando GitHub Actions. Cada push para a branch `main` inicia o pipeline de CI/CD.
@@ -198,7 +275,7 @@ Este projeto está configurado para deploy automático na Hostinger usando GitHu
    - `VPS_USER`: Nome do usuário SSH (recomendado usar um usuário dedicado como 'deploy')
    - `VPS_SSH_PORT`: Porta SSH (geralmente 22)
    - `VPS_SSH_KEY`: Chave SSH privada para autenticação
-   - `VPS_REMOTE_PATH`: Caminho para o diretório no servidor (ex: `/www/wwwroot/ckao.in/cosmonumero/`)
+   - `VPS_REMOTE_PATH`: Caminho para o diretório no servidor (ex: `/var/www/html/cosmonumero/`)
 
 ### Workflow de Deploy
 
@@ -224,9 +301,9 @@ adduser deploy
 usermod -aG www-data deploy
 
 # Configurar diretório para o projeto
-mkdir -p /www/wwwroot/seu-dominio.com/cosmonumero
-chown -R deploy:www-data /www/wwwroot/seu-dominio.com/cosmonumero
-chmod -R 755 /www/wwwroot/seu-dominio.com/cosmonumero
+mkdir -p /var/www/html/cosmonumero
+chown -R deploy:www-data /var/www/html/cosmonumero
+chmod -R 755 /var/www/html/cosmonumero
 
 # Configurar permissões SSH
 su - deploy
